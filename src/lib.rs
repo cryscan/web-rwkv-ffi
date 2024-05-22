@@ -112,7 +112,7 @@ fn load_runtime(model: impl AsRef<Path>) -> Result<Runtime> {
     })
 }
 
-/// Initialize global states.
+/// Initialize the logger. Call this once before everything.
 #[no_mangle]
 pub extern "C" fn init() {
     let _ = simple_logger::SimpleLogger::new()
@@ -123,8 +123,12 @@ pub extern "C" fn init() {
 }
 
 /// Load a runtime.
+///
+/// # Safety
+///
+/// The caller must ensure that `model` is valid.
 #[no_mangle]
-pub extern "C" fn load(model: *const c_char) {
+pub unsafe extern "C" fn load(model: *const c_char) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
     match load_runtime(model) {
         Ok(runtime) => {
@@ -135,6 +139,7 @@ pub extern "C" fn load(model: *const c_char) {
     }
 }
 
+/// Clear the model state.
 #[no_mangle]
 pub extern "C" fn clear_state() {
     let runtime = {
@@ -149,8 +154,13 @@ pub extern "C" fn clear_state() {
     let _ = runtime.state.load(0, tensor);
 }
 
+/// Generate the next token prediction given the input tokens and a sampler.
+///
+/// # Safety
+///
+/// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
 #[no_mangle]
-pub extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16 {
+pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16 {
     let runtime = {
         let runtime = RUNTIME.read().unwrap();
         let Some(runtime) = runtime.clone() else {
@@ -161,6 +171,10 @@ pub extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16
     };
 
     let tokens: &[u16] = unsafe { std::slice::from_raw_parts(tokens, len) };
+    if tokens.is_empty() {
+        log::error!("input cannot be empty");
+        return 0;
+    }
 
     let tokio = runtime.tokio.clone();
     tokio.block_on(async move {
@@ -190,9 +204,9 @@ pub extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct Sampler {
-    temp: f32,
-    top_p: f32,
-    top_k: usize,
+    pub temp: f32,
+    pub top_p: f32,
+    pub top_k: usize,
 }
 
 impl Default for Sampler {
