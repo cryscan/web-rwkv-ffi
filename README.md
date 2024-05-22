@@ -13,8 +13,8 @@ pub struct Sampler {
     pub top_k: usize,
 }
 
-/// Initialize global states.
-pub fn init();
+/// Initialize logger and RNG. Call this once before everything.
+pub fn init(seed: u64);
 /// Load a runtime.
 pub fn load(model: *const c_char);
 /// Clear the model state.

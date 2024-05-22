@@ -112,14 +112,15 @@ fn load_runtime(model: impl AsRef<Path>) -> Result<Runtime> {
     })
 }
 
-/// Initialize the logger. Call this once before everything.
+/// Initialize logger and RNG. Call this once before everything.
 #[no_mangle]
-pub extern "C" fn init() {
+pub extern "C" fn init(seed: u64) {
     let _ = simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .with_module_level("web_rwkv", log::LevelFilter::Info)
         .with_module_level("web_rwkv_ffi", log::LevelFilter::Info)
         .init();
+    fastrand::seed(seed);
 }
 
 /// Load a runtime.
@@ -202,7 +203,7 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sampler {
     pub temp: f32,
     pub top_p: f32,
