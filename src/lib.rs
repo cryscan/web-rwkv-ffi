@@ -123,6 +123,12 @@ pub extern "C" fn init(seed: u64) {
     fastrand::seed(seed);
 }
 
+/// Set the RNG seed.
+#[no_mangle]
+pub extern "C" fn seed(seed: u64) {
+    fastrand::seed(seed);
+}
+
 /// Load a runtime.
 ///
 /// # Safety

@@ -15,6 +15,8 @@ pub struct Sampler {
 
 /// Initialize logger and RNG. Call this once before everything.
 pub fn init(seed: u64);
+/// Set the RNG seed.
+pub fn seed(seed: u64);
 /// Load a runtime.
 pub fn load(model: *const c_char);
 /// Clear the model state.
