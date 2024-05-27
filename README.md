@@ -18,7 +18,7 @@ pub fn init(seed: u64);
 /// Set the RNG seed.
 pub fn seed(seed: u64);
 /// Load a runtime.
-pub fn load(model: *const c_char);
+pub fn load(model: *const c_char, quant: usize, quant_nf4: usize);
 /// Clear the model state.
 pub fn clear_state();
 /// Generate the next token prediction given the input tokens and a sampler.
