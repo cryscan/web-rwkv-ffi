@@ -16,7 +16,8 @@ use web_rwkv::{
         infer::{InferInput, InferInputBatch, InferOption, InferOutput},
         loader::Loader,
         model::{
-            Build, ContextAutoLimits, ModelBuilder, ModelInfo, ModelRuntime, ModelVersion, State,
+            Build, ContextAutoLimits, ModelBuilder, ModelInfo, ModelRuntime, ModelVersion, Quant,
+            State,
         },
         softmax::softmax_one,
         v4, v5, v6, JobRuntime,
@@ -54,7 +55,7 @@ async fn create_context(info: &ModelInfo) -> Result<Context> {
 //     Ok(Tokenizer::new(&contents)?)
 // }
 
-fn load_runtime(model: impl AsRef<Path>) -> Result<Runtime> {
+fn load_runtime(model: impl AsRef<Path>, quant: usize, quant_nf4: usize) -> Result<Runtime> {
     let tokio = Arc::new(tokio::runtime::Runtime::new()?);
     let _tokio = tokio.clone();
 
@@ -69,7 +70,12 @@ fn load_runtime(model: impl AsRef<Path>) -> Result<Runtime> {
         let context = create_context(&info).await?;
         log::info!("{:#?}", context.adapter.get_info());
 
-        let builder = ModelBuilder::new(&context, model);
+        let quant = (0..quant)
+            .map(|layer| (layer, Quant::Int8))
+            .chain((0..quant_nf4).map(|layer| (layer, Quant::NF4)))
+            .collect();
+
+        let builder = ModelBuilder::new(&context, model).quant(quant);
         let runtime = match info.version {
             ModelVersion::V4 => {
                 let model = Build::<v4::Model>::build(builder).await?;
@@ -135,9 +141,9 @@ pub extern "C" fn seed(seed: u64) {
 ///
 /// The caller must ensure that `model` is valid.
 #[no_mangle]
-pub unsafe extern "C" fn load(model: *const c_char) {
+pub unsafe extern "C" fn load(model: *const c_char, quant: usize, quant_nf4: usize) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model) {
+    match load_runtime(model, quant, quant_nf4) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
