@@ -55,7 +55,12 @@ async fn create_context(info: &ModelInfo) -> Result<Context> {
 //     Ok(Tokenizer::new(&contents)?)
 // }
 
-fn load_runtime(model: impl AsRef<Path>, quant: usize, quant_nf4: usize) -> Result<Runtime> {
+fn load_runtime(
+    model: impl AsRef<Path>,
+    quant: usize,
+    quant_nf4: usize,
+    rescale: Option<usize>,
+) -> Result<Runtime> {
     let tokio = Arc::new(tokio::runtime::Runtime::new()?);
     let _tokio = tokio.clone();
 
@@ -76,6 +81,10 @@ fn load_runtime(model: impl AsRef<Path>, quant: usize, quant_nf4: usize) -> Resu
             .collect();
 
         let builder = ModelBuilder::new(&context, model).quant(quant);
+        let builder = match rescale {
+            Some(rescale) => builder.rescale(rescale),
+            None => builder,
+        };
         let runtime = match info.version {
             ModelVersion::V4 => {
                 let model = Build::<v4::Model>::build(builder).await?;
@@ -143,7 +152,29 @@ pub extern "C" fn seed(seed: u64) {
 #[no_mangle]
 pub unsafe extern "C" fn load(model: *const c_char, quant: usize, quant_nf4: usize) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4) {
+    match load_runtime(model, quant, quant_nf4, None) {
+        Ok(runtime) => {
+            let mut rt = RUNTIME.write().unwrap();
+            rt.replace(runtime);
+        }
+        Err(err) => log::error!("{err}"),
+    }
+}
+
+/// Load a runtime with `rescale` layers specified.
+///
+/// # Safety
+///
+/// The caller must ensure that `model` is valid.
+#[no_mangle]
+pub unsafe extern "C" fn load_with_rescale(
+    model: *const c_char,
+    quant: usize,
+    quant_nf4: usize,
+    rescale: usize,
+) {
+    let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
+    match load_runtime(model, quant, quant_nf4, Some(rescale)) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -164,7 +195,7 @@ pub extern "C" fn clear_state() {
         runtime
     };
     let tensor = runtime.state.init();
-    let _ = runtime.state.load(0, tensor);
+    let _ = runtime.state.load(tensor, 0);
 }
 
 /// Generate the next token prediction given the input tokens and a sampler.

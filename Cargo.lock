@@ -803,7 +803,7 @@ dependencies = [
  "indexmap",
  "log",
  "num-traits",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "spirv",
  "termcolor",
  "thiserror",
@@ -1036,6 +1036,12 @@ name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
+
+[[package]]
+name = "rustc-hash"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
 
 [[package]]
 name = "ryu"
@@ -1407,9 +1413,9 @@ checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
 
 [[package]]
 name = "web-rwkv"
-version = "0.8.10"
+version = "0.8.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e1b077d80af7c63af13bffc9fed56f08b1fa3b23322dce321564c71591ed4e"
+checksum = "2003e238202c1c838170c46793c3991b2156eb00e06aa08f95c81f8fb1951313"
 dependencies = [
  "ahash",
  "anyhow",
@@ -1424,7 +1430,7 @@ dependencies = [
  "itertools",
  "log",
  "regex",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "safetensors",
  "serde",
  "serde_bytes",
@@ -1451,7 +1457,7 @@ dependencies = [
 
 [[package]]
 name = "web-rwkv-ffi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "fastrand",
@@ -1477,9 +1483,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32ff1bfee408e1028e2e3acbf6d32d98b08a5a059ccbf5f33305534453ba5d3e"
+checksum = "90e37c7b9921b75dfd26dd973fdcbce36f13dfa6e2dc82aece584e0ed48c355c"
 dependencies = [
  "arrayvec",
  "cfg-if",
@@ -1503,9 +1509,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6a86eaa5e763e59c73cf9e97d55fffd4dfda69fd8bda19589fcf851ddfef1f"
+checksum = "d50819ab545b867d8a454d1d756b90cd5f15da1f2943334ca314af10583c9d39"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -1520,7 +1526,7 @@ dependencies = [
  "parking_lot",
  "profiling",
  "raw-window-handle",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "smallvec",
  "thiserror",
  "web-sys",
@@ -1530,9 +1536,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-hal"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d71c8ae05170583049b65ee562fd839fdc0b3e9ddb84f4e40c9d5f8ea0d4c8c"
+checksum = "172e490a87295564f3fcc0f165798d87386f6231b04d4548bca458cbbfd63222"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -1564,7 +1570,7 @@ dependencies = [
  "range-alloc",
  "raw-window-handle",
  "renderdoc-sys",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "smallvec",
  "thiserror",
  "wasm-bindgen",
