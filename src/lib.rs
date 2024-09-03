@@ -35,6 +35,27 @@ struct Runtime {
     tokio: Arc<tokio::runtime::Runtime>,
 }
 
+#[repr(C)]
+pub struct ModelOutput {
+    pub data: *mut f32,
+    pub len: usize,
+}
+
+impl ModelOutput {
+    pub fn empty() -> ModelOutput {
+        ModelOutput::from(vec![])
+    }
+}
+
+impl From<Vec<f32>> for ModelOutput {
+    fn from(value: Vec<f32>) -> Self {
+        let mut value = std::mem::ManuallyDrop::new(value);
+        let len = value.len();
+        let data = value.as_mut_ptr();
+        ModelOutput { data, len }
+    }
+}
+
 async fn create_context(info: &ModelInfo) -> Result<Context> {
     let instance = wgpu::Instance::default();
     let adapter = instance
@@ -234,15 +255,108 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
             let input = inference.take().unwrap();
             let (input, InferOutput(output)) = runtime.runtime.infer(input).await;
             let output = output[0].0.clone();
-            inference.replace(input);
 
-            if output.size() > 0 {
+            if input.batches[0].tokens.is_empty() {
                 let output = softmax_one(context, output).await.expect("softmax failed");
                 break output.to_vec();
             }
+            inference.replace(input);
         };
         sampler.sample(&output)
     })
+}
+
+/// Compute the model's raw output (next token prediction only) given the input tokens.
+///
+/// # Safety
+///
+/// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
+pub unsafe extern "C" fn infer_raw_last(tokens: *const u16, len: usize) -> ModelOutput {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return ModelOutput::empty();
+        };
+        runtime
+    };
+
+    let tokens: &[u16] = unsafe { std::slice::from_raw_parts(tokens, len) };
+    if tokens.is_empty() {
+        log::error!("input cannot be empty");
+        return ModelOutput::empty();
+    }
+
+    let tokio = runtime.tokio.clone();
+    let output = tokio.block_on(async move {
+        let mut inference = Some(InferInput::new(
+            vec![InferInputBatch {
+                tokens: tokens.to_vec(),
+                option: InferOption::Last,
+            }],
+            128,
+        ));
+        loop {
+            let input = inference.take().unwrap();
+            let (input, InferOutput(output)) = runtime.runtime.infer(input).await;
+            let output = output[0].0.clone();
+
+            if input.batches[0].tokens.is_empty() {
+                break output.to_vec();
+            }
+            inference.replace(input);
+        }
+    });
+
+    output.into()
+}
+
+/// Compute the model's raw output (predictions of all tokens) given the input tokens.
+///
+/// # Safety
+///
+/// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
+pub unsafe extern "C" fn infer_raw_full(tokens: *const u16, len: usize) -> ModelOutput {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return ModelOutput::empty();
+        };
+        runtime
+    };
+
+    let tokens: &[u16] = unsafe { std::slice::from_raw_parts(tokens, len) };
+    if tokens.is_empty() {
+        log::error!("input cannot be empty");
+        return ModelOutput::empty();
+    }
+
+    let tokio = runtime.tokio.clone();
+    let output = tokio.block_on(async move {
+        let mut inference = Some(InferInput::new(
+            vec![InferInputBatch {
+                tokens: tokens.to_vec(),
+                option: InferOption::Full,
+            }],
+            128,
+        ));
+        let mut outputs = vec![];
+        loop {
+            let input = inference.take().unwrap();
+            let (input, InferOutput(output)) = runtime.runtime.infer(input).await;
+            let mut output = output[0].0.clone().to_vec();
+            outputs.append(&mut output);
+
+            if input.batches[0].tokens.is_empty() {
+                break;
+            }
+            inference.replace(input);
+        }
+        outputs
+    });
+
+    output.into()
 }
 
 #[repr(C)]
