@@ -37,8 +37,8 @@ struct Runtime {
 
 #[repr(C)]
 pub struct ModelOutput {
-    pub data: *mut f32,
     pub len: usize,
+    pub data: *mut f32,
 }
 
 impl ModelOutput {
