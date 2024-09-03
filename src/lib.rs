@@ -35,27 +35,6 @@ struct Runtime {
     tokio: Arc<tokio::runtime::Runtime>,
 }
 
-#[repr(C)]
-pub struct ModelOutput {
-    pub len: usize,
-    pub data: *mut f32,
-}
-
-impl ModelOutput {
-    pub fn empty() -> ModelOutput {
-        ModelOutput::from(vec![])
-    }
-}
-
-impl From<Vec<f32>> for ModelOutput {
-    fn from(value: Vec<f32>) -> Self {
-        let mut value = std::mem::ManuallyDrop::new(value);
-        let len = value.len();
-        let data = value.as_mut_ptr();
-        ModelOutput { data, len }
-    }
-}
-
 async fn create_context(info: &ModelInfo) -> Result<Context> {
     let instance = wgpu::Instance::default();
     let adapter = instance
@@ -264,6 +243,35 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
         };
         sampler.sample(&output)
     })
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelOutput {
+    pub len: usize,
+    pub data: *mut f32,
+}
+
+impl ModelOutput {
+    pub fn empty() -> ModelOutput {
+        ModelOutput::from(vec![])
+    }
+}
+
+impl From<Vec<f32>> for ModelOutput {
+    fn from(value: Vec<f32>) -> Self {
+        let mut value = std::mem::ManuallyDrop::new(value);
+        let len = value.len();
+        let data = value.as_mut_ptr();
+        ModelOutput { data, len }
+    }
+}
+
+/// Delete the model output vector created by the infer functions.
+pub extern "C" fn free_raw(output: ModelOutput) {
+    let x = unsafe { std::slice::from_raw_parts_mut(output.data, output.len) };
+    let x = x.as_mut_ptr();
+    let _ = unsafe { Box::from_raw(x) };
 }
 
 /// Compute the model's raw output (next token prediction only) given the input tokens.
