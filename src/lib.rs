@@ -16,11 +16,11 @@ use web_rwkv::{
         infer::{InferInput, InferInputBatch, InferOption, InferOutput},
         loader::Loader,
         model::{
-            Build, ContextAutoLimits, ModelBuilder, ModelInfo, ModelRuntime, ModelVersion, Quant,
-            State,
+            ContextAutoLimits, ModelBuilder, ModelInfo, ModelVersion, Quant,
+            State, Bundle
         },
         softmax::softmax_one,
-        v4, v5, v6, JobRuntime,
+        v4, v5, v6, TokioRuntime,
     },
     wgpu,
 };
@@ -29,7 +29,7 @@ static RUNTIME: RwLock<Option<Runtime>> = RwLock::new(None);
 
 #[derive(Clone)]
 struct Runtime {
-    runtime: JobRuntime<InferInput, InferOutput>,
+    runtime: TokioRuntime<InferInput, InferOutput>,
     state: Arc<dyn State + Sync + Send + 'static>,
     context: Context,
     tokio: Arc<tokio::runtime::Runtime>,
@@ -87,10 +87,10 @@ fn load_runtime(
         };
         let runtime = match info.version {
             ModelVersion::V4 => {
-                let model = Build::<v4::Model>::build(builder).await?;
-                let builder = v4::ModelRuntime::<f16>::new(model, 1);
-                let state = Arc::new(builder.state());
-                let runtime = JobRuntime::new(builder).await;
+                let model = builder.build_v4().await?;
+                let bundle = v4::Bundle::<f16>::new(model, 1);
+                let state = Arc::new(bundle.state());
+                let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
                     state,
@@ -99,10 +99,10 @@ fn load_runtime(
                 }
             }
             ModelVersion::V5 => {
-                let model = Build::<v5::Model>::build(builder).await?;
-                let builder = v5::ModelRuntime::<f16>::new(model, 1);
-                let state = Arc::new(builder.state());
-                let runtime = JobRuntime::new(builder).await;
+                let model = builder.build_v5().await?;
+                let bundle = v5::Bundle::<f16>::new(model, 1);
+                let state = Arc::new(bundle.state());
+                let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
                     state,
@@ -111,10 +111,10 @@ fn load_runtime(
                 }
             }
             ModelVersion::V6 => {
-                let model = Build::<v6::Model>::build(builder).await?;
-                let builder = v6::ModelRuntime::<f16>::new(model, 1);
-                let state = Arc::new(builder.state());
-                let runtime = JobRuntime::new(builder).await;
+                let model = builder.build_v6().await?;
+                let bundle = v6::Bundle::<f16>::new(model, 1);
+                let state = Arc::new(bundle.state());
+                let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
                     state,
@@ -122,6 +122,7 @@ fn load_runtime(
                     tokio,
                 }
             }
+            ModelVersion::V7 => todo!(),
         };
         Ok(runtime)
     })
@@ -232,7 +233,13 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
         ));
         let output = loop {
             let input = inference.take().unwrap();
-            let (input, InferOutput(output)) = runtime.runtime.infer(input).await;
+            let (input, InferOutput(output)) = match runtime.runtime.infer(input).await {
+                Ok(result) => result,
+                Err(err) => {
+                    log::error!("Inference error: {err}");
+                    return 0;
+                }
+            };
             let output = output[0].0.clone();
 
             if input.batches[0].tokens.is_empty() {
@@ -306,7 +313,13 @@ pub unsafe extern "C" fn infer_raw_last(tokens: *const u16, len: usize) -> Model
         ));
         loop {
             let input = inference.take().unwrap();
-            let (input, InferOutput(output)) = runtime.runtime.infer(input).await;
+            let (input, InferOutput(output)) = match runtime.runtime.infer(input).await {
+                Ok(result) => result,
+                Err(err) => {
+                    log::error!("Inference error: {err}");
+                    break vec![];
+                }
+            };
             let output = output[0].0.clone();
 
             if input.batches[0].tokens.is_empty() {
@@ -352,7 +365,13 @@ pub unsafe extern "C" fn infer_raw_full(tokens: *const u16, len: usize) -> Model
         let mut outputs = vec![];
         loop {
             let input = inference.take().unwrap();
-            let (input, InferOutput(output)) = runtime.runtime.infer(input).await;
+            let (input, InferOutput(output)) = match runtime.runtime.infer(input).await {
+                Ok(result) => result,
+                Err(err) => {
+                    log::error!("Inference error: {err}");
+                    break;
+                }
+            };
             let mut output = output[0].0.clone().to_vec();
             outputs.append(&mut output);
 
