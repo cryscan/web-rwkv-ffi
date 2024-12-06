@@ -259,12 +259,26 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
             let output = output[0].0.clone();
 
             if input.batches[0].tokens.is_empty() {
-                let output = softmax_one(context, output).await.expect("softmax failed");
-                break output.to_vec();
+                if sampler.top_k > 1 {
+                    let output = softmax_one(context, output).await.expect("softmax failed");
+                    break output.to_vec();
+                } else {
+                    break output.to_vec();
+                }
             }
             inference.replace(input);
         };
-        sampler.sample(&output)
+        if sampler.top_k > 1 {
+            sampler.sample(&output)
+        } else {
+            output
+                .iter()
+                .enumerate()
+                .max_by(|(_, x), (_, y)| x.total_cmp(y))
+                .unwrap()
+                .0 as u16
+        }
+
     })
 }
 
