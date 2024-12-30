@@ -20,7 +20,7 @@ use web_rwkv::{
             State, Bundle
         },
         softmax::softmax_one,
-        v4, v5, v6, TokioRuntime,
+        v4, v5, v6, v7, TokioRuntime,
     },
     wgpu,
 };
@@ -122,7 +122,18 @@ fn load_runtime(
                     tokio,
                 }
             }
-            ModelVersion::V7 => todo!(),
+            ModelVersion::V7 => {
+                let model = builder.build_v7().await?;
+                let bundle = v7::Bundle::<f16>::new(model, 1);
+                let state = Arc::new(bundle.state());
+                let runtime = TokioRuntime::new(bundle).await;
+                Runtime {
+                    runtime,
+                    state,
+                    context,
+                    tokio,
+                }
+            }
         };
         Ok(runtime)
     })
