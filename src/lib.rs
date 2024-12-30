@@ -286,6 +286,7 @@ impl From<Vec<f32>> for ModelOutput {
 }
 
 /// Delete the model output vector created by the infer functions.
+#[no_mangle]
 pub extern "C" fn free_raw(output: ModelOutput) {
     let x = unsafe { std::slice::from_raw_parts_mut(output.data, output.len) };
     let x = x.as_mut_ptr();
@@ -297,6 +298,7 @@ pub extern "C" fn free_raw(output: ModelOutput) {
 /// # Safety
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
+#[no_mangle]
 pub unsafe extern "C" fn infer_raw_last(tokens: *const u16, len: usize) -> ModelOutput {
     let runtime = {
         let runtime = RUNTIME.read().unwrap();
@@ -348,6 +350,7 @@ pub unsafe extern "C" fn infer_raw_last(tokens: *const u16, len: usize) -> Model
 /// # Safety
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
+#[no_mangle]
 pub unsafe extern "C" fn infer_raw_full(tokens: *const u16, len: usize) -> ModelOutput {
     let runtime = {
         let runtime = RUNTIME.read().unwrap();
