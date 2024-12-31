@@ -1,10 +1,4 @@
-#ifdef _WIN32
-typedef unsigned __int64 uintptr_t;
-#else
-typedef unsigned long uintptr_t;
-#endif
-typedef unsigned long long uint64_t;
-typedef unsigned short uint16_t;
+#include "stdint.h"
 
 struct Sampler
 {
