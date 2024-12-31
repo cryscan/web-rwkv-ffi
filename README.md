@@ -13,6 +13,11 @@ pub struct Sampler {
     pub top_k: usize,
 }
 
+pub struct ModelOutput {
+    pub len: usize,
+    pub data: *mut f32,
+}
+
 /// Initialize logger and RNG. Call this once before everything.
 pub fn init(seed: u64);
 /// Set the RNG seed.
@@ -23,4 +28,10 @@ pub fn load(model: *const c_char, quant: usize, quant_nf4: usize);
 pub fn clear_state();
 /// Generate the next token prediction given the input tokens and a sampler.
 pub fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16;
+/// Compute the model's raw output (next token prediction only) given the input tokens.
+pub fn infer_raw_last(tokens: *const u16, len: usize) -> ModelOutput;
+/// Compute the model's raw output (predictions of all tokens) given the input tokens.
+pub fn infer_raw_full(tokens: *const u16, len: usize) -> ModelOutput;
+/// Delete the model output vector created by the infer functions.
+pub fn free_raw(output: ModelOutput);
 ```
