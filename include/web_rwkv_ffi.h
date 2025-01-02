@@ -16,6 +16,7 @@ struct ModelInfoOutput {
   uintptr_t version;
   uintptr_t num_layer;
   uintptr_t num_hidden;
+  uintptr_t num_emb;
   uintptr_t num_vocab;
   uintptr_t num_head;
 };
