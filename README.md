@@ -18,6 +18,14 @@ pub struct ModelOutput {
     pub data: *mut f32,
 }
 
+pub struct ModelInfoOutput {
+    pub version: usize,
+    pub num_layer: usize,
+    pub num_hidden: usize,
+    pub num_vocab: usize,
+    pub num_head: usize,
+}
+
 /// Initialize logger and RNG. Call this once before everything.
 pub fn init(seed: u64);
 /// Set the RNG seed.
@@ -34,4 +42,6 @@ pub fn infer_raw_last(tokens: *const u16, len: usize) -> ModelOutput;
 pub fn infer_raw_full(tokens: *const u16, len: usize) -> ModelOutput;
 /// Delete the model output vector created by the infer functions.
 pub fn free_raw(output: ModelOutput);
+// Returns the model info.
+pub fn get_model_info() -> ModelInfoOutput;
 ```

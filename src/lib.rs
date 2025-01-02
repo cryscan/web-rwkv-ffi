@@ -30,6 +30,7 @@ static RUNTIME: RwLock<Option<Runtime>> = RwLock::new(None);
 #[derive(Clone)]
 struct Runtime {
     runtime: TokioRuntime<InferInput, InferOutput>,
+    info: ModelInfo,
     state: Arc<dyn State + Sync + Send + 'static>,
     context: Context,
     tokio: Arc<tokio::runtime::Runtime>,
@@ -93,6 +94,7 @@ fn load_runtime(
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
+                    info,
                     state,
                     context,
                     tokio,
@@ -105,6 +107,7 @@ fn load_runtime(
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
+                    info,
                     state,
                     context,
                     tokio,
@@ -117,6 +120,7 @@ fn load_runtime(
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
+                    info,
                     state,
                     context,
                     tokio,
@@ -129,6 +133,7 @@ fn load_runtime(
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
                     runtime,
+                    info,
                     state,
                     context,
                     tokio,
@@ -454,5 +459,53 @@ impl Sampler {
             .map(|(id, _)| id)
             .unwrap_or_default();
         token as u16
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ModelInfoOutput {
+    pub version: usize,
+    pub num_layer: usize,
+    pub num_hidden: usize,
+    pub num_vocab: usize,
+    pub num_head: usize,
+}
+
+impl Default for ModelInfoOutput {
+    fn default() -> Self {
+        Self {
+            version: 0,
+            num_layer: 0,
+            num_hidden: 0,
+            num_vocab: 0,
+            num_head: 0,
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_model_info() -> ModelInfoOutput {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return ModelInfoOutput::default();
+        };
+        runtime
+    };
+
+    let info = runtime.info;
+    ModelInfoOutput {
+        version: match info.version {
+            ModelVersion::V4 => 4,
+            ModelVersion::V5 => 5,
+            ModelVersion::V6 => 6,
+            ModelVersion::V7 => 7,
+        },
+        num_layer: info.num_layer,
+        num_hidden: info.num_hidden,
+        num_vocab: info.num_vocab,
+        num_head: info.num_head,
     }
 }

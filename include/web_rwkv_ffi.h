@@ -12,6 +12,14 @@ struct ModelOutput {
   float *logits;
 };
 
+struct ModelInfoOutput {
+  uintptr_t version;
+  uintptr_t num_layer;
+  uintptr_t num_hidden;
+  uintptr_t num_vocab;
+  uintptr_t num_head;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,6 +66,8 @@ struct ModelOutput infer_raw_last(const uint16_t *tokens, uintptr_t len);
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
 struct ModelOutput infer_raw_all(const uint16_t *tokens, uintptr_t len);
+
+struct ModelInfoOutput get_model_info();
 
 #ifdef __cplusplus
 } // extern "C"
