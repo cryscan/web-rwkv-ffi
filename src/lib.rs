@@ -468,6 +468,7 @@ pub struct ModelInfoOutput {
     pub version: usize,
     pub num_layer: usize,
     pub num_hidden: usize,
+    pub num_emb: usize,
     pub num_vocab: usize,
     pub num_head: usize,
 }
@@ -478,6 +479,7 @@ impl Default for ModelInfoOutput {
             version: 0,
             num_layer: 0,
             num_hidden: 0,
+            num_emb: 0,
             num_vocab: 0,
             num_head: 0,
         }
@@ -505,6 +507,7 @@ pub unsafe extern "C" fn get_model_info() -> ModelInfoOutput {
         },
         num_layer: info.num_layer,
         num_hidden: info.num_hidden,
+        num_emb: info.num_emb,
         num_vocab: info.num_vocab,
         num_head: info.num_head,
     }

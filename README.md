@@ -22,6 +22,7 @@ pub struct ModelInfoOutput {
     pub version: usize,
     pub num_layer: usize,
     pub num_hidden: usize,
+    pub num_emb: usize,
     pub num_vocab: usize,
     pub num_head: usize,
 }
