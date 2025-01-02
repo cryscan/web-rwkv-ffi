@@ -289,6 +289,76 @@ impl From<Vec<f32>> for ModelOutput {
         ModelOutput { data, len }
     }
 }
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StateRaw {
+    pub len: usize,
+    pub data: *mut f32,
+}
+
+impl StateRaw {
+    pub fn empty() -> StateRaw {
+        StateRaw::from(vec![])
+    }
+}
+
+impl From<Vec<f32>> for StateRaw {
+    fn from(value: Vec<f32>) -> Self {
+        let mut value = std::mem::ManuallyDrop::new(value);
+        let len = value.len();
+        let data = value.as_mut_ptr();
+        StateRaw { data, len }
+    }
+}
+
+/// Get the model state.
+#[no_mangle]
+pub extern "C" fn get_state() -> StateRaw {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return StateRaw::empty();
+        };
+        runtime
+    };
+    let tokio = runtime.tokio.clone();
+    let tensor = tokio.block_on(async move {
+        runtime.state.back(0).await.map_err(|err| log::error!("{err}"))
+    }).unwrap();
+    let mut data: Vec<f32> = vec![0.0; tensor.len()];
+    data.copy_from_slice(&tensor);
+    data.into()
+}
+
+/// Free the returned state vector created by the get_state function.
+#[no_mangle]
+pub extern "C" fn free_state(state: StateRaw) {
+    let x = unsafe { std::slice::from_raw_parts_mut(state.data, state.len) };
+    let x = x.as_mut_ptr();
+    let _ = unsafe { Box::from_raw(x) };
+}
+
+/// Set the model state.
+#[no_mangle]
+pub extern "C" fn set_state(data: StateRaw) {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return;
+        };
+        runtime
+    };
+    let tokio = runtime.tokio.clone();
+    tokio.block_on(async move {
+            let shape = runtime.state.init_shape();
+            let state = unsafe { std::slice::from_raw_parts(data.data, data.len) };
+            let state: web_rwkv::tensor::Tensor<web_rwkv::tensor::Cpu<f32>, f32> = runtime.context.tensor_from_data(shape, state.to_vec()).unwrap();
+            let _ = runtime.state.load(state, 0);
+        },
+    );
+}
 
 /// Delete the model output vector created by the infer functions.
 #[no_mangle]

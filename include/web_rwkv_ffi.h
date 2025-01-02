@@ -21,6 +21,11 @@ struct ModelInfoOutput {
   uintptr_t num_head;
 };
 
+struct StateRaw {
+  uintptr_t len;
+  float *state;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -69,6 +74,12 @@ struct ModelOutput infer_raw_last(const uint16_t *tokens, uintptr_t len);
 struct ModelOutput infer_raw_all(const uint16_t *tokens, uintptr_t len);
 
 struct ModelInfoOutput get_model_info();
+
+struct StateRaw get_state();
+
+void set_state(struct StateRaw state);
+
+void free_state(struct StateRaw state);
 
 #ifdef __cplusplus
 } // extern "C"
