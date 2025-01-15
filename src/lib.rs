@@ -22,8 +22,13 @@ use web_rwkv::{
         softmax::softmax_one,
         v4, v5, v6, v7, TokioRuntime,
     },
+    num::Float,
+    tensor::ops::TensorOp,
     wgpu,
 };
+use ops::TensorOpExt;
+
+mod ops;
 
 static RUNTIME: RwLock<Option<Runtime>> = RwLock::new(None);
 
@@ -34,6 +39,42 @@ struct Runtime {
     state: Arc<dyn State + Sync + Send + 'static>,
     context: Context,
     tokio: Arc<tokio::runtime::Runtime>,
+}
+
+fn make_hooks_extended_v6<F: Float>(info: &ModelInfo) -> Result<v6::HookMap<F>> {
+    let mut hooks = v6::HookMap::new();
+    for layer in 0..info.num_layer {
+        // add a custom operation before time-mix for each layer
+        hooks.insert(
+            v6::Hook::PreAttTimeDecayActivate(layer),
+            Box::new(move |frame: v6::Frame<F>| {
+                let op = TensorOp::ext_v6(&frame.buffer.time_decay, &frame.buffer.att_k)?;
+                Ok(TensorOp::List(vec![op]))
+            }),
+        );
+    }
+    Ok(hooks)
+}
+
+fn make_hooks_extended_v7<F: Float>(info: &ModelInfo) -> Result<v7::HookMap<F>> {
+    let mut hooks = v7::HookMap::new();
+    for layer in 0..info.num_layer {
+        hooks.insert(
+            v7::Hook::PostAttAdapt(layer),
+            Box::new(move |frame: v7::Frame<F>| {
+                let op = TensorOp::discount(&frame.buffer.att_a, 2.0, 0.0)?;
+                Ok(TensorOp::List(vec![op]))
+            }),
+        );
+        hooks.insert(
+            v7::Hook::PostAttControl(layer),
+            Box::new(move |frame: v7::Frame<F>| {
+                let op = TensorOp::ext_v7(&frame.buffer.att_w, &frame.buffer.att_a)?;
+                Ok(TensorOp::List(vec![op]))
+            }),
+        );
+    }
+    Ok(hooks)
 }
 
 async fn create_context(info: &ModelInfo) -> Result<Context> {
@@ -61,6 +102,7 @@ fn load_runtime(
     quant: usize,
     quant_nf4: usize,
     rescale: Option<usize>,
+    extended: bool,
 ) -> Result<Runtime> {
     let tokio = Arc::new(tokio::runtime::Runtime::new()?);
     let _tokio = tokio.clone();
@@ -115,7 +157,13 @@ fn load_runtime(
             }
             ModelVersion::V6 => {
                 let model = builder.build_v6().await?;
-                let bundle = v6::Bundle::<f16>::new(model, 1);
+                let bundle = match extended {
+                    true => {
+                        let hooks = make_hooks_extended_v6(&info)?;
+                        v6::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                    }
+                    false => v6::Bundle::<f16>::new(model, 1),
+                };
                 let state = Arc::new(bundle.state());
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
@@ -128,7 +176,13 @@ fn load_runtime(
             }
             ModelVersion::V7 => {
                 let model = builder.build_v7().await?;
-                let bundle = v7::Bundle::<f16>::new(model, 1);
+                let bundle = match extended {
+                    true => {
+                        let hooks = make_hooks_extended_v7(&info)?;
+                        v7::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                    }
+                    false => v7::Bundle::<f16>::new(model, 1),
+                };
                 let state = Arc::new(bundle.state());
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
@@ -169,7 +223,7 @@ pub extern "C" fn seed(seed: u64) {
 #[no_mangle]
 pub unsafe extern "C" fn load(model: *const c_char, quant: usize, quant_nf4: usize) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, None) {
+    match load_runtime(model, quant, quant_nf4, None, false) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -191,7 +245,28 @@ pub unsafe extern "C" fn load_with_rescale(
     rescale: usize,
 ) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, Some(rescale)) {
+    match load_runtime(model, quant, quant_nf4, Some(rescale), false) {
+        Ok(runtime) => {
+            let mut rt = RUNTIME.write().unwrap();
+            rt.replace(runtime);
+        }
+        Err(err) => log::error!("{err}"),
+    }
+}
+
+/// Load a runtime with extended hooks.
+///
+/// # Safety
+///
+/// The caller must ensure that `model` is valid.
+#[no_mangle]
+pub unsafe extern "C" fn load_extended(
+    model: *const c_char,
+    quant: usize,
+    quant_nf4: usize
+) {
+    let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
+    match load_runtime(model, quant, quant_nf4, None, true) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
