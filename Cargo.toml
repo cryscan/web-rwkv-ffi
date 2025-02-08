@@ -8,12 +8,12 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 anyhow = "1.0"
-fastrand = "2.0"
+fastrand = "2.3"
 half = { version = "2.2", features = ["bytemuck", "serde"] }
-itertools = "0.13"
+itertools = "0.14"
 log = "0.4"
 memmap2 = "0.9"
-safetensors = "0.4"
+safetensors = "0.5"
 simple_logger = { version = "5.0.0", features = ["stderr"] }
-tokio = { version = "1.37", features = ["full"] }
-web-rwkv = "0.10.5"
+tokio = { version = "1.41", features = ["full"] }
+web-rwkv = "0.10.10"

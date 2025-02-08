@@ -21,6 +21,11 @@ struct ModelInfoOutput {
   uintptr_t num_head;
 };
 
+struct StateRaw {
+  uintptr_t len;
+  float *state;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +41,8 @@ void seed(uint64_t seed);
 ///
 /// The caller must ensure that `model` is valid.
 void load(const char *model, uintptr_t quant, uintptr_t quant_nf4);
+
+void load_extended(const char *model, uintptr_t quant, uintptr_t quant_nf4);
 
 void load_with_rescale(const char *model, uintptr_t quant, uintptr_t quant_nf4, uintptr_t rescale);
 
@@ -69,6 +76,12 @@ struct ModelOutput infer_raw_last(const uint16_t *tokens, uintptr_t len);
 struct ModelOutput infer_raw_all(const uint16_t *tokens, uintptr_t len);
 
 struct ModelInfoOutput get_model_info();
+
+struct StateRaw get_state();
+
+void set_state(struct StateRaw state);
+
+void free_state(struct StateRaw state);
 
 #ifdef __cplusplus
 } // extern "C"

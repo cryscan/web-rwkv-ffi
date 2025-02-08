@@ -22,8 +22,13 @@ use web_rwkv::{
         softmax::softmax_one,
         v4, v5, v6, v7, TokioRuntime,
     },
+    num::Float,
+    tensor::ops::TensorOp,
     wgpu,
 };
+use ops::TensorOpExt;
+
+mod ops;
 
 static RUNTIME: RwLock<Option<Runtime>> = RwLock::new(None);
 
@@ -34,6 +39,42 @@ struct Runtime {
     state: Arc<dyn State + Sync + Send + 'static>,
     context: Context,
     tokio: Arc<tokio::runtime::Runtime>,
+}
+
+fn make_hooks_extended_v6<F: Float>(info: &ModelInfo) -> Result<v6::HookMap<F>> {
+    let mut hooks = v6::HookMap::new();
+    for layer in 0..info.num_layer {
+        // add a custom operation before time-mix for each layer
+        hooks.insert(
+            v6::Hook::PreAttTimeDecayActivate(layer),
+            Box::new(move |frame: v6::Frame<F>| {
+                let op = TensorOp::ext_v6(&frame.buffer.time_decay, &frame.buffer.att_k)?;
+                Ok(TensorOp::List(vec![op]))
+            }),
+        );
+    }
+    Ok(hooks)
+}
+
+fn make_hooks_extended_v7<F: Float>(info: &ModelInfo) -> Result<v7::HookMap<F>> {
+    let mut hooks = v7::HookMap::new();
+    for layer in 0..info.num_layer {
+        hooks.insert(
+            v7::Hook::PostAttAdapt(layer),
+            Box::new(move |frame: v7::Frame<F>| {
+                let op = TensorOp::affine(&frame.buffer.att_a, 2.0, 0.0)?;
+                Ok(TensorOp::List(vec![op]))
+            }),
+        );
+        hooks.insert(
+            v7::Hook::PostAttControl(layer),
+            Box::new(move |frame: v7::Frame<F>| {
+                let op = TensorOp::ext_v7(&frame.buffer.att_w, &frame.buffer.att_a)?;
+                Ok(TensorOp::List(vec![op]))
+            }),
+        );
+    }
+    Ok(hooks)
 }
 
 async fn create_context(info: &ModelInfo) -> Result<Context> {
@@ -61,6 +102,7 @@ fn load_runtime(
     quant: usize,
     quant_nf4: usize,
     rescale: Option<usize>,
+    extended: bool,
 ) -> Result<Runtime> {
     let tokio = Arc::new(tokio::runtime::Runtime::new()?);
     let _tokio = tokio.clone();
@@ -115,7 +157,13 @@ fn load_runtime(
             }
             ModelVersion::V6 => {
                 let model = builder.build_v6().await?;
-                let bundle = v6::Bundle::<f16>::new(model, 1);
+                let bundle = match extended {
+                    true => {
+                        let hooks = make_hooks_extended_v6(&info)?;
+                        v6::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                    }
+                    false => v6::Bundle::<f16>::new(model, 1),
+                };
                 let state = Arc::new(bundle.state());
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
@@ -128,7 +176,13 @@ fn load_runtime(
             }
             ModelVersion::V7 => {
                 let model = builder.build_v7().await?;
-                let bundle = v7::Bundle::<f16>::new(model, 1);
+                let bundle = match extended {
+                    true => {
+                        let hooks = make_hooks_extended_v7(&info)?;
+                        v7::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                    }
+                    false => v7::Bundle::<f16>::new(model, 1),
+                };
                 let state = Arc::new(bundle.state());
                 let runtime = TokioRuntime::new(bundle).await;
                 Runtime {
@@ -169,7 +223,7 @@ pub extern "C" fn seed(seed: u64) {
 #[no_mangle]
 pub unsafe extern "C" fn load(model: *const c_char, quant: usize, quant_nf4: usize) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, None) {
+    match load_runtime(model, quant, quant_nf4, None, false) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -191,7 +245,28 @@ pub unsafe extern "C" fn load_with_rescale(
     rescale: usize,
 ) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, Some(rescale)) {
+    match load_runtime(model, quant, quant_nf4, Some(rescale), false) {
+        Ok(runtime) => {
+            let mut rt = RUNTIME.write().unwrap();
+            rt.replace(runtime);
+        }
+        Err(err) => log::error!("{err}"),
+    }
+}
+
+/// Load a runtime with extended hooks.
+///
+/// # Safety
+///
+/// The caller must ensure that `model` is valid.
+#[no_mangle]
+pub unsafe extern "C" fn load_extended(
+    model: *const c_char,
+    quant: usize,
+    quant_nf4: usize
+) {
+    let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
+    match load_runtime(model, quant, quant_nf4, None, true) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -259,12 +334,26 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
             let output = output[0].0.clone();
 
             if input.batches[0].tokens.is_empty() {
-                let output = softmax_one(context, output).await.expect("softmax failed");
-                break output.to_vec();
+                if sampler.top_k > 1 {
+                    let output = softmax_one(context, output).await.expect("softmax failed");
+                    break output.to_vec();
+                } else {
+                    break output.to_vec();
+                }
             }
             inference.replace(input);
         };
-        sampler.sample(&output)
+        if sampler.top_k > 1 {
+            sampler.sample(&output)
+        } else {
+            output
+                .iter()
+                .enumerate()
+                .max_by(|(_, x), (_, y)| x.total_cmp(y))
+                .unwrap()
+                .0 as u16
+        }
+
     })
 }
 
@@ -288,6 +377,76 @@ impl From<Vec<f32>> for ModelOutput {
         let data = value.as_mut_ptr();
         ModelOutput { data, len }
     }
+}
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StateRaw {
+    pub len: usize,
+    pub data: *mut f32,
+}
+
+impl StateRaw {
+    pub fn empty() -> StateRaw {
+        StateRaw::from(vec![])
+    }
+}
+
+impl From<Vec<f32>> for StateRaw {
+    fn from(value: Vec<f32>) -> Self {
+        let mut value = std::mem::ManuallyDrop::new(value);
+        let len = value.len();
+        let data = value.as_mut_ptr();
+        StateRaw { data, len }
+    }
+}
+
+/// Get the model state.
+#[no_mangle]
+pub extern "C" fn get_state() -> StateRaw {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return StateRaw::empty();
+        };
+        runtime
+    };
+    let tokio = runtime.tokio.clone();
+    let tensor = tokio.block_on(async move {
+        runtime.state.back(0).await.map_err(|err| log::error!("{err}"))
+    }).unwrap();
+    let mut data: Vec<f32> = vec![0.0; tensor.len()];
+    data.copy_from_slice(&tensor);
+    data.into()
+}
+
+/// Free the returned state vector created by the get_state function.
+#[no_mangle]
+pub extern "C" fn free_state(state: StateRaw) {
+    let x = unsafe { std::slice::from_raw_parts_mut(state.data, state.len) };
+    let x = x.as_mut_ptr();
+    let _ = unsafe { Box::from_raw(x) };
+}
+
+/// Set the model state.
+#[no_mangle]
+pub extern "C" fn set_state(data: StateRaw) {
+    let runtime = {
+        let runtime = RUNTIME.read().unwrap();
+        let Some(runtime) = runtime.clone() else {
+            log::error!("runtime not loaded");
+            return;
+        };
+        runtime
+    };
+    let tokio = runtime.tokio.clone();
+    tokio.block_on(async move {
+            let shape = runtime.state.init_shape();
+            let state = unsafe { std::slice::from_raw_parts(data.data, data.len) };
+            let state: web_rwkv::tensor::Tensor<web_rwkv::tensor::Cpu<f32>, f32> = runtime.context.tensor_from_data(shape, state.to_vec()).unwrap();
+            let _ = runtime.state.load(state, 0);
+        },
+    );
 }
 
 /// Delete the model output vector created by the infer functions.
