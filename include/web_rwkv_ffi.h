@@ -58,7 +58,7 @@ void clear_state();
 /// # Safety
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
-uint16_t infer(const uint16_t *tokens,
+uint32_t infer(const uint32_t *tokens,
                uintptr_t len,
                struct Sampler sampler);
 
@@ -70,14 +70,14 @@ void free_raw(struct ModelOutput output);
 /// # Safety
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
-struct ModelOutput infer_raw_last(const uint16_t *tokens, uintptr_t len);
+struct ModelOutput infer_raw_last(const uint32_t *tokens, uintptr_t len);
 
 /// Compute the model's raw output (predictions of all tokens) given the input tokens.
 ///
 /// # Safety
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
-struct ModelOutput infer_raw_all(const uint16_t *tokens, uintptr_t len);
+struct ModelOutput infer_raw_all(const uint32_t *tokens, uintptr_t len);
 
 struct ModelInfoOutput get_model_info();
 

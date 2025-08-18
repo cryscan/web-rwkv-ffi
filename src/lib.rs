@@ -424,7 +424,7 @@ pub extern "C" fn clear_state() {
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
 #[no_mangle]
-pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16 {
+pub unsafe extern "C" fn infer(tokens: *const u32, len: usize, sampler: Sampler) -> u32 {
     let runtime = {
         let runtime = RUNTIME.read().unwrap();
         let Some(runtime) = runtime.clone() else {
@@ -435,9 +435,6 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
     };
 
     let tokens: Vec<Token> = unsafe { std::slice::from_raw_parts(tokens, len) }.iter().map(|t| Token::Token(*t)).collect();
-    // let tokens: Vec<u16> = (0..len)
-    //         .map(|_| fastrand::u16(0..((runtime.info.num_vocab - 1) as u16)))
-    //         .collect();
     if tokens.is_empty() {
         log::error!("input cannot be empty");
         return 0;
@@ -448,7 +445,7 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
         let context = &runtime.context;
         let mut inference = Some(RnnInput::new(
             vec![RnnInputBatch {
-                tokens: tokens,
+                tokens,
                 option: RnnOption::Last,
             }],
             128,
@@ -482,7 +479,7 @@ pub unsafe extern "C" fn infer(tokens: *const u16, len: usize, sampler: Sampler)
                 .enumerate()
                 .max_by(|(_, x), (_, y)| x.total_cmp(y))
                 .unwrap()
-                .0 as u16
+                .0 as u32
         }
 
     })
@@ -592,7 +589,7 @@ pub extern "C" fn free_raw(output: ModelOutput) {
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
 #[no_mangle]
-pub unsafe extern "C" fn infer_raw_last(tokens: *const u16, len: usize) -> ModelOutput {
+pub unsafe extern "C" fn infer_raw_last(tokens: *const u32, len: usize) -> ModelOutput {
     let runtime = {
         let runtime = RUNTIME.read().unwrap();
         let Some(runtime) = runtime.clone() else {
@@ -644,7 +641,7 @@ pub unsafe extern "C" fn infer_raw_last(tokens: *const u16, len: usize) -> Model
 ///
 /// The caller must ensure that `tokens` is valid and `len` does not exceed the actual length of `tokens`.
 #[no_mangle]
-pub unsafe extern "C" fn infer_raw_full(tokens: *const u16, len: usize) -> ModelOutput {
+pub unsafe extern "C" fn infer_raw_full(tokens: *const u32, len: usize) -> ModelOutput {
     let runtime = {
         let runtime = RUNTIME.read().unwrap();
         let Some(runtime) = runtime.clone() else {
@@ -712,7 +709,7 @@ impl Default for Sampler {
 }
 
 impl Sampler {
-    pub fn sample(&self, probs: &[f32]) -> u16 {
+    pub fn sample(&self, probs: &[f32]) -> u32 {
         let sorted: Vec<_> = probs
             .iter()
             .copied()
@@ -746,7 +743,7 @@ impl Sampler {
             .find_or_first(|&(_, cum)| rand <= cum)
             .map(|(id, _)| id)
             .unwrap_or_default();
-        token as u16
+        token as u32
     }
 }
 
