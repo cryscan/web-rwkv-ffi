@@ -110,6 +110,7 @@ fn load_runtime(
     quant_sf4: usize,
     rescale: Option<usize>,
     extended: bool,
+    fp16: bool,
 ) -> Result<WktvRuntime> {
     let tokio = Arc::new(tokio::runtime::Runtime::new()?);
     let _tokio = tokio.clone();
@@ -138,67 +139,135 @@ fn load_runtime(
         };
         let runtime = match info.version {
             ModelVersion::V4 => {
-                let model = builder.build_v4().await?;
-                let bundle = v4::Bundle::<f16>::new(model, 1);
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                if fp16 {
+                    let model = builder.build_v4().await?;
+                    let bundle = v4::Bundle::<f16>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
+                } else {
+                    let model = builder.build_v4().await?;
+                    let bundle = v4::Bundle::<f32>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
             ModelVersion::V5 => {
-                let model = builder.build_v5().await?;
-                let bundle = v5::Bundle::<f16>::new(model, 1);
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                if fp16 {
+                    let model = builder.build_v5().await?;
+                    let bundle = v5::Bundle::<f16>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
+                } else {
+                    let model = builder.build_v5().await?;
+                    let bundle = v5::Bundle::<f32>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
             ModelVersion::V6 => {
-                let model = builder.build_v6().await?;
-                let bundle = match extended {
-                    true => {
-                        let hooks = make_hooks_extended_v6(&info)?;
-                        v6::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                if fp16 {
+                    let model = builder.build_v6().await?;
+                    let bundle = match extended {
+                        true => {
+                            let hooks = make_hooks_extended_v6(&info)?;
+                            v6::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                        }
+                        false => v6::Bundle::<f16>::new(model, 1),
+                    };
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
                     }
-                    false => v6::Bundle::<f16>::new(model, 1),
-                };
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                } else {
+                    let model = builder.build_v6().await?;
+                    let bundle = match extended {
+                        true => {
+                            let hooks = make_hooks_extended_v6(&info)?;
+                            v6::Bundle::<f32>::new_with_hooks(model, 1, hooks)
+                        }
+                        false => v6::Bundle::<f32>::new(model, 1),
+                    };
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
             ModelVersion::V7 => {
-                let model = builder.build_v7().await?;
-                let bundle = match extended {
-                    true => {
-                        let hooks = make_hooks_extended_v7(&info)?;
-                        v7::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                if fp16 {
+                    let model = builder.build_v7().await?;
+                    let bundle = match extended {
+                        true => {
+                            let hooks = make_hooks_extended_v7(&info)?;
+                            v7::Bundle::<f16>::new_with_hooks(model, 1, hooks)
+                        }
+                        false => v7::Bundle::<f16>::new(model, 1),
+                    };
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
                     }
-                    false => v7::Bundle::<f16>::new(model, 1),
-                };
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                } else {
+                    let model = builder.build_v7().await?;
+                    let bundle = match extended {
+                        true => {
+                            let hooks = make_hooks_extended_v7(&info)?;
+                            v7::Bundle::<f32>::new_with_hooks(model, 1, hooks)
+                        }
+                        false => v7::Bundle::<f32>::new(model, 1),
+                    };
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
         };
@@ -206,7 +275,7 @@ fn load_runtime(
     })
 }
 
-fn load_runtime_prefab(model: impl AsRef<Path>) -> Result<WktvRuntime> {
+fn load_runtime_prefab(model: impl AsRef<Path>, fp16: bool) -> Result<WktvRuntime> {
 
     let tokio = Arc::new(tokio::runtime::Runtime::new()?);
     let _tokio = tokio.clone();
@@ -225,63 +294,127 @@ fn load_runtime_prefab(model: impl AsRef<Path>) -> Result<WktvRuntime> {
 
         let runtime = match info.version {
             ModelVersion::V4 => {
-                let seed: Seed<_, v4::Model> = Seed::new(&context);
-                let model = seed.deserialize(&mut deserializer)?;
-                let bundle = v4::Bundle::<f16>::new(model, 1);
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
+                if fp16 {
+                    let seed: Seed<_, v4::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v4::Bundle::<f16>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
 
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
+                } else {
+                    let seed: Seed<_, v4::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v4::Bundle::<f32>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
             ModelVersion::V5 => {
-                let seed: Seed<_, v5::Model> = Seed::new(&context);
-                let model = seed.deserialize(&mut deserializer)?;
-                let bundle = v5::Bundle::<f16>::new(model, 1);
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
+                if fp16 {
+                    let seed: Seed<_, v5::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v5::Bundle::<f16>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
 
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
+                } else {
+                    let seed: Seed<_, v5::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v5::Bundle::<f32>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
             ModelVersion::V6 => {
-                let seed: Seed<_, v6::Model> = Seed::new(&context);
-                let model = seed.deserialize(&mut deserializer)?;
-                let bundle = v6::Bundle::<f16>::new(model, 1);
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
+                if fp16 {
+                    let seed: Seed<_, v6::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v6::Bundle::<f16>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
 
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
+                } else {
+                    let seed: Seed<_, v6::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v6::Bundle::<f32>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
             ModelVersion::V7 => {
-                let seed: Seed<_, v7::Model> = Seed::new(&context);
-                let model = seed.deserialize(&mut deserializer)?;
-                let bundle = v7::Bundle::<f16>::new(model, 1);
-                let state = Arc::new(bundle.state());
-                let runtime = TokioRuntime::new(bundle).await;
+                if fp16 {
+                    let seed: Seed<_, v7::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v7::Bundle::<f16>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
 
-                WktvRuntime {
-                    runtime,
-                    info,
-                    state,
-                    context,
-                    tokio,
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
+                } else {
+                    let seed: Seed<_, v7::Model> = Seed::new(&context);
+                    let model = seed.deserialize(&mut deserializer)?;
+                    let bundle = v7::Bundle::<f32>::new(model, 1);
+                    let state = Arc::new(bundle.state());
+                    let runtime = TokioRuntime::new(bundle).await;
+
+                    WktvRuntime {
+                        runtime,
+                        info,
+                        state,
+                        context,
+                        tokio,
+                    }
                 }
             }
         };
@@ -312,9 +445,9 @@ pub extern "C" fn seed(seed: u64) {
 ///
 /// The caller must ensure that `model` is valid.
 #[no_mangle]
-pub unsafe extern "C" fn load(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize) {
+pub unsafe extern "C" fn load(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize, fp16: bool) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, quant_sf4,None, false) {
+    match load_runtime(model, quant, quant_nf4, quant_sf4,None, false, fp16) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -347,9 +480,9 @@ pub unsafe extern "C" fn release() {
 /// 
 /// The caller must ensure that `model` is valid.
 #[no_mangle]
-pub unsafe extern "C" fn load_prefab(model: *const c_char) {
+pub unsafe extern "C" fn load_prefab(model: *const c_char, fp16: bool) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime_prefab(model) {
+    match load_runtime_prefab(model, fp16) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -370,9 +503,10 @@ pub unsafe extern "C" fn load_with_rescale(
     quant_nf4: usize,
     quant_sf4: usize,
     rescale: usize,
+    fp16: bool,
 ) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, quant_sf4, Some(rescale), false) {
+    match load_runtime(model, quant, quant_nf4, quant_sf4, Some(rescale), false, fp16) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
@@ -392,9 +526,10 @@ pub unsafe extern "C" fn load_extended(
     quant: usize,
     quant_nf4: usize,
     quant_sf4: usize,
+    fp16: bool,
 ) {
     let model = unsafe { CStr::from_ptr(model).to_string_lossy().to_string() };
-    match load_runtime(model, quant, quant_nf4, quant_sf4, None, true) {
+    match load_runtime(model, quant, quant_nf4, quant_sf4, None, true, fp16) {
         Ok(runtime) => {
             let mut rt = RUNTIME.write().unwrap();
             rt.replace(runtime);
