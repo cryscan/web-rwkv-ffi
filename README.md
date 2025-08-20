@@ -37,13 +37,13 @@ pub fn init(seed: u64);
 /// Set the RNG seed.
 pub fn seed(seed: u64);
 /// Load a runtime.
-pub fn load(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize);
+pub fn load(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize, fp16: bool);
 /// Load a prefab model.
-pub fn load_prefab(model: *const c_char);
+pub fn load_prefab(model: *const c_char, fp16: bool);
 /// Load a model with rescale.
-pub fn load_with_rescale(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize, rescale: usize);
+pub fn load_with_rescale(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize, rescale: usize, fp16: bool);
 /// Load an extended model (for Othello and other demos).
-pub fn load_extended(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize);
+pub fn load_extended(model: *const c_char, quant: usize, quant_nf4: usize, quant_sf4: usize, fp16: bool);
 /// Clear the model state.
 pub fn clear_state();
 /// Get the model state.
@@ -53,11 +53,11 @@ pub fn set_state(data: StateRaw);
 /// Free the model state.
 pub fn free_state(state: StateRaw);
 /// Generate the next token prediction given the input tokens and a sampler.
-pub fn infer(tokens: *const u16, len: usize, sampler: Sampler) -> u16;
+pub fn infer(tokens: *const u32, len: usize, sampler: Sampler) -> u32;
 /// Compute the model's raw output (next token prediction only) given the input tokens.
-pub fn infer_raw_last(tokens: *const u16, len: usize) -> ModelOutput;
+pub fn infer_raw_last(tokens: *const u32, len: usize) -> ModelOutput;
 /// Compute the model's raw output (predictions of all tokens) given the input tokens.
-pub fn infer_raw_full(tokens: *const u16, len: usize) -> ModelOutput;
+pub fn infer_raw_full(tokens: *const u32, len: usize) -> ModelOutput;
 /// Delete the model output vector created by the infer functions.
 pub fn free_raw(output: ModelOutput);
 // Returns the model info.
