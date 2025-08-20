@@ -18,4 +18,4 @@ safetensors = "0.5"
 serde = { version = "1", features = ["derive"] }
 simple_logger = { version = "5.0.0", features = ["stderr"] }
 tokio = { version = "1.41", features = ["full"] }
-web-rwkv = "0.10.13"
+web-rwkv = "0.10.14"
